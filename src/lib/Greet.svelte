@@ -1,19 +1,23 @@
 <script lang="ts">
-  import { invoke } from "@tauri-apps/api/tauri";
+	import { invoke } from "@tauri-apps/api/tauri";
 
-  let name = "";
-  let greetMsg = "";
+	let name = "";
+	let deckName = "";
 
-  async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/v1/guides/features/command
-    greetMsg = await invoke("greet", { name });
-  }
+	async function createDeck() {
+		await invoke("create_deck", { name });
+	}
+
 </script>
 
 <div>
-  <div class="row">
-    <input id="greet-input" placeholder="Enter a name..." bind:value={name} />
-    <button on:click={greet}> Greet </button>
-  </div>
-  <p>{greetMsg}</p>
+	<div class="row">
+		<input
+			id="deck-name-input"
+			placeholder="Enter a deck name..."
+			bind:value={name}
+		/>
+		<button on:click={createDeck}> Greet </button>
+	</div>
+
 </div>
