@@ -14,6 +14,3 @@
 {#each data.decks as deck}
 <div><a href='/decks/{deck}'>{deck}</div>
 {/each}
-
-<style>
-</style>
