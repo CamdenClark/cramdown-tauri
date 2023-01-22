@@ -4,17 +4,15 @@
 	import type { PageData } from "./$types";
 
 	export let data: PageData;
-	console.log(data.cards)
 </script>
 
 <div class="flex justify-center">
 	<h2>{data.params.deck}</h2>
 </div>
 
-
-{#each data.cards as card}
-<p>{card.front}</p>
+{#each data.notes as note}
+	<p>{note.front}</p>
 {/each}
-		
+
 <style>
 </style>

@@ -7,10 +7,10 @@ type Card = {
 
 export const load = async ({ params }: any) => {
 	const { deck } = params;
-	const cards: Card[] = await tauri.invoke("list_cards", { deck });
+	const notes: Card[] = await tauri.invoke("list_notes", { deck });
 
 	return {
 		params,
-		cards
+		notes
 	};
 };

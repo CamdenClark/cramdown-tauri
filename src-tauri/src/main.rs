@@ -11,6 +11,7 @@ use std::fs::ReadDir;
 use std::path::Path;
 
 use std::io;
+use std::time::SystemTime;
 
 use comrak::nodes::{AstNode, NodeValue};
 use comrak::{format_html, markdown_to_html, parse_document, Arena, ComrakOptions};
@@ -109,6 +110,8 @@ fn render_back(card: Card) -> String {
 
 const COLLECTION_DIR: &str = "/home/camden/flashcards";
 
+
+
 fn get_decks_from_paths(paths: ReadDir) -> Vec<String> {
     paths
         .map(|path| match path {
@@ -147,12 +150,33 @@ fn preview_note(show_back: bool, card: Card) -> String {
 
 #[tauri::command]
 fn create_note(deck: &str, front: &str, back: &str) -> String {
+    let time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs().to_string();
     match fs::write(
-        Path::new(COLLECTION_DIR).join(deck).join("test.md"),
+        Path::new(COLLECTION_DIR).join(deck).join(format!("{}_{}.md", time, "basic")),
         format!("# Front\n{}\n# Back\n{}", front, back),
     ) {
         Ok(..) => "".to_string(),
         Err(..) => "".to_string(),
+    }
+}
+
+fn get_notes_from_paths(paths: ReadDir) -> Vec<Card> {
+    paths
+        .map(|path| match path {
+            Ok(p) => Some(p.path().file_stem().unwrap().to_str().unwrap().to_string()),
+            Err(_) => None,
+        })
+        .filter(|x| x.is_some())
+        .map(|x| x.unwrap())
+        .map(|x| Card { front: x.to_string(), back: x.to_string() })
+        .collect()
+}
+
+#[tauri::command]
+fn list_notes(deck: &str) -> Result<Vec<Card>, String> {
+    match fs::read_dir(Path::new(COLLECTION_DIR).join(deck)) {
+        Ok(paths) => Ok(get_notes_from_paths(paths)),
+        Err(err) => Err(err.to_string()),
     }
 }
 
@@ -163,7 +187,8 @@ fn main() {
             get_decks,
             create_deck,
             create_note,
-            preview_note
+            preview_note,
+            list_notes
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
