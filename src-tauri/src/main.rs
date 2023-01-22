@@ -5,6 +5,7 @@
 
 use regex::Regex;
 use serde::{Serialize, Deserialize};
+use std::collections::HashMap;
 use std::fs;
 use std::fs::ReadDir;
 use std::path::Path;
@@ -26,35 +27,52 @@ struct Card {
     back: String,
 }
 
-fn parse_card(md: String) -> Card {
-    let re = Regex::new("# (.*)").unwrap();
-    
-    let mut new_line = "".to_string();
 
-    let mut front = "Hello".to_string();
+fn parse_note_into_fields(md: String) -> HashMap<String, String> {
+    let re = Regex::new("# (.*)").unwrap();
+    let mut fields = HashMap::new();
+    let mut current_field: Option<String> = None;
+    let mut current_str: String = "".to_string();
 
     for line in md.split("\n") {
+        let current = current_str.clone();
         if let Some(heading) = re.captures(line) {
-            if heading.get(1).unwrap().as_str() == "Back" { 
-                front = new_line.trim().to_string();
-                new_line = "".to_string();
-            }
+            match current_field { 
+                Some(field) => {
+                    fields.insert(field.to_string(), current.clone().trim().to_string());
+                },
+                None => {}
+            };
+            current_field = Some(heading.get(1).unwrap().as_str().to_string());
+            current_str = "".to_string();
         } else {
-            if new_line.is_empty() {
-                new_line = line.to_string();
+            if current.is_empty() {
+                current_str = line.to_string();
             } else {
-                new_line = format!("{}\n{}", new_line, line);
+                current_str = format!("{}\n{}", current, line);
             }
         }
     }
 
-    Card {
-        front,
-        back: new_line.trim().to_string()
+    match current_field { 
+        Some(field) => {
+            fields.insert(field, current_str.trim().to_string());
+        },
+        None => {}
     }
+
+    fields
 
 }
 
+fn parse_card(md: String) -> Card {
+    let fields = parse_note_into_fields(md);
+
+    Card {
+        front: fields.get("Front").unwrap().clone(),
+        back: fields.get("Back").unwrap().clone(),
+    }
+}
 
 
 #[test]

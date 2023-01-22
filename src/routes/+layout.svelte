@@ -1,5 +1,5 @@
 <script>
-	import "@skeletonlabs/skeleton/themes/theme-skeleton.css";
+	import '@skeletonlabs/skeleton/themes/theme-rocket.css';
 	import "@skeletonlabs/skeleton/styles/all.css";
 	import "../app.postcss";
 
@@ -7,7 +7,7 @@
 </script>
 
 <AppShell>
-	<svelte:fragment slot="header"><h1>cramdown</h1></svelte:fragment>
+	<svelte:fragment slot="header"><h1><a href='/'>cramdown</a></h1></svelte:fragment>
 	<svelte:fragment slot="pageHeader">Page Header</svelte:fragment>
 	<!-- Router Slot -->
 	<slot />
