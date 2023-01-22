@@ -11,7 +11,7 @@
 </div>
 
 {#each data.notes as note}
-	<p>{note.front}</p>
+	<p><a href='/decks/{data.params.deck}/notes/{note.front}'>{note.front}</a></p>
 {/each}
 
 <style>

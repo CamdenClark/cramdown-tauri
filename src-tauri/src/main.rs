@@ -149,6 +149,25 @@ fn preview_note(show_back: bool, card: Card) -> String {
 }
 
 #[tauri::command]
+fn read_note(deck_id: &str, note_id: &str) -> Result<Card, String> {
+    match fs::read(
+        Path::new(COLLECTION_DIR).join(deck_id).join(format!("{}.md", note_id))) { 
+        Ok(f) => Ok(parse_card(String::from_utf8(f).unwrap())),
+        Err(err) => Err(err.to_string())
+    }
+}
+
+#[tauri::command]
+fn update_note(deck_id: &str, note_id: &str, front: &str, back: &str) -> String {
+    match fs::write(
+        Path::new(COLLECTION_DIR).join(deck_id).join(format!("{}.md", note_id)),
+        format!("# Front\n{}\n# Back\n{}", front, back),
+    ) {
+        Ok(..) => "".to_string(),
+        Err(..) => "".to_string(),
+    }
+}
+#[tauri::command]
 fn create_note(deck: &str, front: &str, back: &str) -> String {
     let time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs().to_string();
     match fs::write(
@@ -188,7 +207,9 @@ fn main() {
             create_deck,
             create_note,
             preview_note,
-            list_notes
+            list_notes,
+            read_note,
+            update_note
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
