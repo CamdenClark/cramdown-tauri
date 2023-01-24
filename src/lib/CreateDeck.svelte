@@ -2,7 +2,6 @@
 	import { invoke } from "@tauri-apps/api/tauri";
 
 	let name = "";
-	let deckName = "";
 
 	async function createDeck() {
 		await invoke("create_deck", { name });
@@ -17,7 +16,7 @@
 			placeholder="Enter a deck name..."
 			bind:value={name}
 		/>
-		<button on:click={createDeck}> Greet </button>
+		<button class="btn btn-filled-primary" on:click={createDeck}> Create Deck </button>
 	</div>
 
 </div>
