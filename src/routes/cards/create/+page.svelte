@@ -46,11 +46,11 @@
 		</label>
 		<label>
 			Front:
-			<textarea id="front-input" bind:value={front} />
+			<textarea id="front-input" bind:value={front} required />
 		</label>
 		<label>
 			Back:
-			<textarea id="back-input" bind:value={back} />
+			<textarea id="back-input" bind:value={back} required />
 		</label>
 		<button
 			class="btn btn-filled-primary btn-base"
