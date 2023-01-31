@@ -10,6 +10,8 @@
 	<h2>{data.params.deck}</h2>
 </div>
 
+<a href='/decks/{data.params.deck}/review'>Review</a>
+
 {#each data.notes as note}
 	<p><a href='/decks/{data.params.deck}/notes/{note.front}'>{note.front}</a></p>
 {/each}
