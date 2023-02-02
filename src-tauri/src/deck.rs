@@ -21,6 +21,7 @@ fn get_decks_from_paths(paths: ReadDir) -> Vec<String> {
 }
 
 
+#[tauri::command]
 pub fn get_decks() -> Result<Vec<String>, String> {
     match fs::read_dir(get_collection_path()) {
         Ok(paths) => Ok(get_decks_from_paths(paths)),
@@ -28,6 +29,7 @@ pub fn get_decks() -> Result<Vec<String>, String> {
     }
 }
 
+#[tauri::command]
 pub fn create_deck(name: &str) -> String {
     match fs::create_dir(get_deck_path(name)) {
         Ok(..) => "".to_string(),
