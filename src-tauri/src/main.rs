@@ -10,13 +10,17 @@ use std::fs;
 use std::fs::ReadDir;
 use std::path::Path;
 
-use std::io::{self, Write};
+use std::io::Write;
 use std::time::SystemTime;
 
 use chrono::{DateTime, Utc};
-use comrak::nodes::{AstNode, NodeValue};
-use comrak::{format_html, markdown_to_html, parse_document, Arena, ComrakOptions};
-use std::fs::File;
+use comrak::{markdown_to_html, ComrakOptions};
+
+pub mod collection;
+pub mod deck;
+//pub mod note;
+//pub mod card;
+//pub mod review;
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 struct Review {
@@ -62,12 +66,12 @@ struct Card {
 
 #[tauri::command]
 fn review_card(card: Card, score: ReviewScore) -> Result<String, String> {
-    let time = Utc::now();
-    match fs::OpenOptions::new()
-        .append(true)
-        .create(true)
-        .open(COLLECTION_DIR)
-    {
+    match fs::OpenOptions::new().append(true).create(true).open(
+        Path::new(COLLECTION_DIR)
+            .join(&card.deck_id)
+            .join("reviews")
+            .join(format!("{}.json", &card.note_id)),
+    ) {
         Ok(mut file) => match file.write(&serde_json::to_vec(&card).unwrap()) {
             Ok(..) => Ok("".to_string()),
             Err(..) => Err("".to_string()),
@@ -156,33 +160,15 @@ fn render_back(card: BasicCard) -> String {
     )
 }
 
-const COLLECTION_DIR: &str = "/home/camden/flashcards";
-
-fn get_decks_from_paths(paths: ReadDir) -> Vec<String> {
-    paths
-        .map(|path| match path {
-            Ok(p) => Some(p.path().file_stem().unwrap().to_str().unwrap().to_string()),
-            Err(_) => None,
-        })
-        .filter(|x| x.is_some())
-        .map(|x| x.unwrap())
-        .collect()
-}
 
 #[tauri::command]
 fn get_decks() -> Result<Vec<String>, String> {
-    match fs::read_dir(COLLECTION_DIR) {
-        Ok(paths) => Ok(get_decks_from_paths(paths)),
-        Err(err) => Err(err.to_string()),
-    }
+    deck::get_decks()
 }
 
 #[tauri::command]
 fn create_deck(name: &str) -> String {
-    match fs::create_dir(Path::new(COLLECTION_DIR).join(name)) {
-        Ok(..) => "".to_string(),
-        Err(..) => "".to_string(),
-    }
+    deck::create_deck(name)
 }
 
 #[tauri::command]
@@ -237,49 +223,76 @@ fn create_note(deck: &str, front: &str, back: &str) -> String {
 }
 
 fn get_due_cards_from_paths(deck: &str, paths: ReadDir) -> Vec<Card> {
+    let note_filename_regex = Regex::new("([^_]*)?_?(.*).md").unwrap();
     paths
-        .map(|path| match path {
-            Ok(p) => Some(p.path().file_stem().unwrap().to_str().unwrap().to_string()),
+        .filter_map(|path| match path {
+            Ok(p) => Some(p),
             Err(_) => None,
         })
-        .filter(|x| x.is_some())
-        .map(|x| x.unwrap())
+        .filter(|x| match x.file_type() {
+            Ok(t) => t.is_file(),
+            Err(_) => false,
+        })
+        .map(|path| path.file_name())
+        .filter_map(
+            |filename| match note_filename_regex.captures(filename.to_str().unwrap()) {
+                None => None,
+                Some(captures) => {
+                    let note_id = captures.get(1).map_or("basic", |x| x.as_str());
+
+                    Some(Card {
+                        deck_id: deck.to_string(),
+                        card_num: 1,
+                        due: Option::None,
+                        ease: 200,
+                        interval: 100,
+                        state: CardState::New,
+                        steps: 0,
+                        note_id: note_id.to_string(),
+                    })
+                }
+            },
+        )
+        .filter(|x| match x.due {
+            None => true,
+            Some(due) => due < Utc::now(),
+        })
         // This is where in the future we'll want to derive other cards based on
         // their templates / cloze deletions
         // we'll also need to parse the filename to get the note id + the template
-        .map(|x| Card {
-            deck_id: deck.to_string(),
-            card_num: 1,
-            due: Option::None,
-            ease: 200,
-            interval: 100,
-            state: CardState::New,
-            steps: 0,
-            note_id: x,
-        })
-        .filter(|x| match x.due {
-            None => true,
-            Some(due) => due < Utc::now()
-        })
         .collect()
 }
 
 fn get_notes_from_paths(deck: &str, paths: ReadDir) -> Vec<Note> {
+    let note_filename_regex = Regex::new("([^_]*)?_?(.*).md").unwrap();
     paths
-        .map(|path| match path {
-            Ok(p) => Some(p.path().file_stem().unwrap().to_str().unwrap().to_string()),
+        .filter_map(|path| match path {
+            Ok(p) => Some(p),
             Err(_) => None,
         })
-        .filter(|x| x.is_some())
-        .map(|x| x.unwrap())
+        .filter(|x| match x.file_type() {
+            Ok(t) => t.is_file(),
+            Err(_) => false,
+        })
+        .map(|path| path.file_name())
+        .filter_map(
+            |filename| match note_filename_regex.captures(filename.to_str().unwrap()) {
+                None => None,
+                Some(captures) => {
+                    let note_id = captures.get(1).map_or("basic", |x| x.as_str());
+                    let template = captures.get(2).map_or("basic", |x| x.as_str());
+
+                    Some(Note {
+                        deck_id: deck.to_string(),
+                        note_id: note_id.to_string(),
+                        template: template.to_string(),
+                    })
+                }
+            },
+        )
         // This is where in the future we'll want to derive other cards based on
         // their templates / cloze deletions
         // we'll also need to parse the filename to get the note id + the template
-        .map(|x| Note {
-            deck_id: deck.to_string(),
-            note_id: x,
-            template: "basic".to_string(),
-        })
         .collect()
 }
 
@@ -294,17 +307,17 @@ fn list_cards_to_review(deck: &str) -> Result<Vec<Card>, String> {
 #[tauri::command]
 fn render_card(card: Card, back: bool) -> Result<String, String> {
     match fs::read_to_string(
-            Path::new(COLLECTION_DIR)
-                .join(card.deck_id)
-                .join(format!("{}.md", card.note_id))
-        ) {
+        Path::new(COLLECTION_DIR)
+            .join(card.deck_id)
+            .join(format!("{}.md", card.note_id)),
+    ) {
         Ok(content) => {
             if back {
                 Ok(render_back(parse_card(content)))
             } else {
                 Ok(render_front(parse_card(content)))
             }
-        },
+        }
         Err(err) => Err(err.to_string()),
     }
 }
@@ -328,7 +341,8 @@ fn main() {
             read_note,
             update_note,
             list_cards_to_review,
-            render_card
+            render_card,
+            review_card
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

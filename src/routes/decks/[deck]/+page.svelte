@@ -13,7 +13,7 @@
 <a href='/decks/{data.params.deck}/review'>Review</a>
 
 {#each data.notes as note}
-	<p><a href='/decks/{data.params.deck}/notes/{note.front}'>{note.front}</a></p>
+	<p><a href='/decks/{data.params.deck}/notes/{note.note_id}'>{note.note_id}</a></p>
 {/each}
 
 <style>
