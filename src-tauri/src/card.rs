@@ -10,7 +10,9 @@ use std::io::Write;
 use std::time::SystemTime;
 
 use comrak::{ComrakOptions, markdown_to_html};
+
 use crate::deck;
+use crate::note;
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 struct Review {
@@ -89,29 +91,11 @@ fn parse_note_into_fields(md: String) -> HashMap<String, String> {
     fields
 }
 
-fn parse_card(md: String) -> BasicCard {
-    let fields = parse_note_into_fields(md);
-
-    BasicCard {
-        front: fields.get("Front").unwrap().clone(),
-        back: fields.get("Back").unwrap().clone(),
-    }
-}
-fn render_front(card: BasicCard) -> String {
-    markdown_to_html(card.front.as_str(), &ComrakOptions::default())
-}
-
-fn render_back(card: BasicCard) -> String {
-    markdown_to_html(
-        format!("{}\n\n---\n\n{}", card.front, card.back).as_str(),
-        &ComrakOptions::default(),
-    )
-}
 
 #[tauri::command]
 pub fn render_card(card: Card, back: bool) -> Result<String, String> {
     match fs::read_to_string(
-        deck::get_deck_path(&card.deck_id).join(format!("{}.md", card.note_id)),
+        note::get_note_path(card.deck_id, card.note_id)
     ) {
         Ok(content) => {
             if back {
@@ -186,23 +170,5 @@ pub fn list_cards_to_review(deck: &str) -> Result<Vec<Card>, String> {
         Ok(paths) => Ok(get_due_cards_from_paths(deck, paths)),
         Err(err) => Err(err.to_string()),
     }
-}
-
-#[test]
-fn test_parse_card() {
-    assert_eq!(
-        BasicCard {
-            front: "Hello".into(),
-            back: "World".into()
-        },
-        parse_card("# Front\nHello\n# Back\nWorld".into())
-    );
-    assert_eq!(
-        BasicCard {
-            front: "Hello\nSomething else".into(),
-            back: "World".into()
-        },
-        parse_card("# Front\nHello\nSomething else\n\n# Back\nWorld".into())
-    );
 }
 

@@ -1,13 +1,13 @@
-use std::{time::SystemTime};
 use std::collections::HashMap;
 use std::fs;
 use std::fs::ReadDir;
-use std::path::Path;
+use std::path::PathBuf;
+use std::time::SystemTime;
 
 use serde::{Deserialize, Serialize};
 
-use regex::Regex;
 use comrak::{markdown_to_html, ComrakOptions};
+use regex::Regex;
 
 use crate::deck;
 
@@ -18,7 +18,17 @@ pub struct Note {
     template: String,
 }
 
+// Note fields are a hashmap of String => String
 
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+pub struct NoteCard {
+    front: String,
+    back: String,
+}
+
+pub fn get_note_path(note: Note) -> PathBuf {
+    deck::get_deck_path(&note.deck_id).join(format!("{}_{}.md", &note.note_id, &note.template))
+}
 
 fn get_notes_from_paths(deck: &str, paths: ReadDir) -> Vec<Note> {
     let note_filename_regex = Regex::new("([^_]*)?_?(.*).md").unwrap();
@@ -51,12 +61,6 @@ fn get_notes_from_paths(deck: &str, paths: ReadDir) -> Vec<Note> {
         // their templates / cloze deletions
         // we'll also need to parse the filename to get the note id + the template
         .collect()
-}
-
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
-pub struct BasicCard {
-    front: String,
-    back: String,
 }
 
 fn parse_note_into_fields(md: String) -> HashMap<String, String> {
@@ -94,65 +98,78 @@ fn parse_note_into_fields(md: String) -> HashMap<String, String> {
 
     fields
 }
-fn parse_card(md: String) -> BasicCard {
-    let fields = parse_note_into_fields(md);
 
-    BasicCard {
+fn get_card_from_fields(fields: HashMap<String, String>, _template: &str, _card_num: u32) -> NoteCard {
+    // TODO: Handle different template types
+    NoteCard {
         front: fields.get("Front").unwrap().clone(),
         back: fields.get("Back").unwrap().clone(),
     }
 }
-fn render_front(card: BasicCard) -> String {
-    markdown_to_html(card.front.as_str(), &ComrakOptions::default())
+
+fn parse_card(md: String, template: &str, card_num: u32) -> NoteCard {
+    let fields = parse_note_into_fields(md);
+
+    get_card_from_fields(fields, template, card_num)
 }
 
-fn render_back(card: BasicCard) -> String {
+fn render_front(fields: HashMap<String, String>, _template: &str, _card_num: u32) -> String {
+    markdown_to_html(fields.get("Front").unwrap(), &ComrakOptions::default())
+}
+
+fn render_back(fields: HashMap<String, String>, _template: &str, _card_num: u32) -> String {
     markdown_to_html(
-        format!("{}\n\n---\n\n{}", card.front, card.back).as_str(),
+        format!("{}\n\n---\n\n{}",
+                fields.get("Front").unwrap(),
+                fields.get("Back").unwrap()).as_str(),
         &ComrakOptions::default(),
     )
 }
 
 #[tauri::command]
-pub fn read_note(deck_id: &str, note_id: &str) -> Result<BasicCard, String> {
-    match fs::read(
-        deck::get_deck_path(deck_id)
-            .join(format!("{}.md", note_id)),
-    ) {
-        Ok(f) => Ok(parse_card(String::from_utf8(f).unwrap())),
+pub fn read_note(note: Note) -> Result<HashMap<String, String>, String> {
+    match fs::read(get_note_path(note)) {
+        Ok(f) => Ok(parse_note_into_fields(String::from_utf8(f).unwrap())),
         Err(err) => Err(err.to_string()),
     }
 }
 
-#[tauri::command]
-pub fn update_note(deck_id: &str, note_id: &str, front: &str, back: &str) -> String {
-    match fs::write(
-            deck::get_deck_path(deck_id)
-            .join(format!("{}.md", note_id)),
-        format!("# Front\n{}\n# Back\n{}", front, back),
-    ) {
-        Ok(..) => "".to_string(),
-        Err(..) => "".to_string(),
+pub fn get_note_md(fields: HashMap<String, String>) -> String {
+    let mut md = "".to_string();
+    for (field, value) in fields.iter() {
+        md = format!("{}# {}\n{}\n", md, field, value);
     }
+    md
 }
 
 #[tauri::command]
-pub fn create_note(deck: &str, front: &str, back: &str) -> String {
+pub fn create_note(mut note: Note, fields: HashMap<String, String>) -> String {
     let time = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
         .unwrap()
         .as_secs()
         .to_string();
+    note.note_id = format!("{}_{}", time, note.template);
+    
     match fs::write(
-        deck::get_deck_path(deck)
-            .join(format!("{}_{}.md", time, "basic")),
-        format!("# Front\n{}\n# Back\n{}", front, back),
+        get_note_path(note),
+        get_note_md(fields)
     ) {
         Ok(..) => "".to_string(),
         Err(..) => "".to_string(),
     }
 }
 
+#[tauri::command]
+pub fn update_note(note: Note, fields: HashMap<String, String>) -> String {
+    match fs::write(
+        get_note_path(note),
+        get_note_md(fields)
+    ) {
+        Ok(..) => "".to_string(),
+        Err(..) => "".to_string(),
+    }
+}
 
 #[tauri::command]
 pub fn list_notes(deck: &str) -> Result<Vec<Note>, String> {
@@ -163,11 +180,10 @@ pub fn list_notes(deck: &str) -> Result<Vec<Note>, String> {
 }
 
 #[tauri::command]
-pub fn preview_note(show_back: bool, note: BasicCard) -> String {
+pub fn preview_note(fields: HashMap<String, String>, template: &str, card_num: u32, show_back: bool) -> String {
     if show_back {
-        render_back(note)
+        render_back(fields, template, card_num)
     } else {
-        render_front(note)
+        render_front(fields, template, card_num)
     }
 }
-
