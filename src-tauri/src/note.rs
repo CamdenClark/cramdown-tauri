@@ -24,7 +24,7 @@ pub struct Note {
 pub enum CardState {
     New,
     Learning,
-    Review,
+    Graduated,
     Relearning,
 }
 
@@ -42,19 +42,25 @@ pub struct Card {
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
-struct Review {
-    note_id: String,
-    card_num: String,
-    due: DateTime<Utc>,
-}
-
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub enum ReviewScore {
     Again,
     Hard,
     Good,
     Easy,
 }
+
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+struct Review {
+    note_id: String,
+    card_num: String,
+    due: Option<DateTime<Utc>>,
+    interval: u32,
+    ease: u32,
+    last_interval: Option<u32>,
+    state: CardState,
+    score: ReviewScore
+}
+
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 struct BasicCard {
@@ -180,15 +186,13 @@ fn render_front(fields: HashMap<String, String>, _template: String, _card_num: u
 
 fn render_back(
     fields: HashMap<String, String>,
-    _template: String,
-    _card_num: u32,
+    template: String,
+    card_num: u32,
 ) -> String {
-    let empty = String::default();
-    let front = fields.get("Front").unwrap_or(&empty);
-    let back = fields.get("Back").unwrap_or(&empty);
+    let display_card = get_card_from_fields(fields, template, card_num);
 
     markdown_to_html(
-        format!("{}\n\n---\n\n{}", front, back).as_str(),
+        format!("{}\n\n---\n\n{}", display_card.front, display_card.back).as_str(),
         &ComrakOptions::default(),
     )
 }
