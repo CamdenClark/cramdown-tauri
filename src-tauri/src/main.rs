@@ -6,7 +6,6 @@
 pub mod collection;
 pub mod deck;
 pub mod note;
-pub mod card;
 //pub mod review;
 
 
@@ -19,9 +18,9 @@ fn main() {
             note::preview_note,
             note::read_note,
             note::update_note,
-            card::list_cards_to_review,
-            card::render_card,
-            card::review_card,
+            note::list_cards_to_review,
+            note::render_card,
+            note::review_card,
             note::list_notes
         ])
         .run(tauri::generate_context!())
