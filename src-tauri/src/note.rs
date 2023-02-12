@@ -178,16 +178,16 @@ mod tests {
             };
             let time = Utc::now();
             let review = score_card(card, time, $score);
-            assert_eq!(review.state, $expected_state);
-            assert_eq!(review.due.signed_duration_since(time), $expected_duration);
-            assert_eq!(review.interval, $expected_interval);
-            assert_eq!(review.ease, $expected_ease);
-            assert_eq!(review.steps, $expected_steps);
+            assert_eq!(review.state, $expected_state, "Review card state doesn't match");
+            assert_eq!(review.due.signed_duration_since(time), $expected_duration, "Duration to next review doesn't match");
+            assert_eq!(review.interval, $expected_interval, "Interval doesn't match");
+            assert_eq!(review.ease, $expected_ease, "Ease factor doesn't match");
+            assert_eq!(review.steps, $expected_steps, "Review steps don't match");
         };
     }
 
     #[test]
-    fn score_new_cards() {
+    fn new_card_scored_easy() {
         test_card!(
             1,
             250,
@@ -200,6 +200,10 @@ mod tests {
             Duration::days(4),
             CardState::Graduated
         );
+    }
+
+    #[test]
+    fn new_card_scored_again() {
         test_card!(
             1,
             250,
@@ -212,6 +216,10 @@ mod tests {
             Duration::minutes(1),
             CardState::New
         );
+    }
+
+    #[test]
+    fn new_card_scored_hard() {
         test_card!(
             1,
             250,
@@ -224,6 +232,10 @@ mod tests {
             Duration::minutes(1),
             CardState::New
         );
+    }
+
+    #[test]
+    fn new_card_scored_good() {
         test_card!(
             1,
             250,
