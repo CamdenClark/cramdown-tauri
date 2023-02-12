@@ -11,7 +11,7 @@ use comrak::{markdown_to_html, ComrakOptions};
 use regex::Regex;
 
 use crate::deck;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct Note {
@@ -23,7 +23,6 @@ pub struct Note {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum CardState {
     New,
-    Learning,
     Graduated,
     Relearning,
 }
@@ -41,7 +40,7 @@ pub struct Card {
     template: String,
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum ReviewScore {
     Again,
     Hard,
@@ -50,17 +49,17 @@ pub enum ReviewScore {
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
-struct Review {
+pub struct Review {
     note_id: String,
-    card_num: String,
+    card_num: u32,
     due: Option<DateTime<Utc>>,
     interval: u32,
     ease: u32,
     last_interval: Option<u32>,
     state: CardState,
-    score: ReviewScore
+    score: ReviewScore,
+    steps: u32,
 }
-
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 struct BasicCard {
@@ -78,6 +77,116 @@ impl From<Card> for Note {
     }
 }
 
+impl Default for Card {
+    fn default() -> Self {
+        Card {
+            note_id: String::from("test"),
+            card_num: 1,
+            interval: 1,
+            ease: 250,
+            steps: 0,
+            template: String::from("basic"),
+            due: Option::None,
+            deck_id: String::from("test"),
+            state: CardState::New,
+        }
+    }
+}
+
+const EASY_INTERVAL: u32 = 4;
+
+pub fn score_card(card: Card, time: DateTime<Utc>, score: ReviewScore) -> Review {
+    let mut review = Review {
+        note_id: card.note_id,
+        card_num: card.card_num,
+        due: Some(Utc::now()),
+        interval: card.interval,
+        ease: card.ease,
+        last_interval: Some(1),
+        state: CardState::New,
+        score: score.clone(),
+        steps: 0,
+    };
+    match card.state {
+        CardState::New => match score {
+            ReviewScore::Easy => {
+                review.state = CardState::Graduated;
+                review.interval = EASY_INTERVAL;
+                review.due = time.checked_add_signed(Duration::days(EASY_INTERVAL.into()));
+                review
+            }
+            ReviewScore::Again => {
+                review.state = CardState::New;
+                review.due = time.checked_add_signed(Duration::minutes(1));
+                review
+            }
+            _ => review
+        }
+        _ => review
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::note::{score_card, Card, CardState, ReviewScore};
+    use chrono::{Duration, Utc};
+
+    macro_rules! test_card {
+        ($interval:literal, $ease:literal, $steps:literal, $due:expr, $state:expr,
+     $score:expr,
+     $new_interval:literal, $new_ease:literal, $new_steps:literal, $duration:expr, $new_state:expr) => {
+            let card = Card {
+                note_id: String::from("test"),
+                card_num: 1,
+                interval: $interval,
+                ease: $ease,
+                steps: $steps,
+                template: String::from("basic"),
+                due: $due,
+                deck_id: String::from("test"),
+                state: $state,
+            };
+            let time = Utc::now();
+            let review = score_card(card, time, $score);
+            assert_eq!(review.state, $new_state);
+            assert_eq!(review.due.unwrap().signed_duration_since(time), $duration);
+            assert_eq!(review.interval, $new_interval);
+            assert_eq!(review.ease, $new_ease);
+            assert_eq!(review.steps, $new_steps);
+        };
+    }
+
+    #[test]
+    fn score_new_cards() {
+        test_card!(
+            1,
+            250,
+            0,
+            Option::None,
+            CardState::New,
+            ReviewScore::Easy,
+            4,
+            250,
+            0,
+            Duration::days(4),
+            CardState::Graduated
+        );
+        test_card!(
+            1,
+            250,
+            0,
+            Option::None,
+            CardState::New,
+            ReviewScore::Again,
+            1,
+            250,
+            0,
+            Duration::minutes(1),
+            CardState::New
+        );
+    }
+}
+
 // Note fields are a hashmap of String => String
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
@@ -88,6 +197,12 @@ pub struct NoteCard {
 
 pub fn get_note_path(note: Note) -> PathBuf {
     deck::get_deck_path(&note.deck_id).join(format!("{}_{}.md", &note.note_id, &note.template))
+}
+
+pub fn get_review_path(note: Note) -> PathBuf {
+    deck::get_deck_path(&note.deck_id)
+        .join("reviews")
+        .join(format!("{}.jsonl", &note.note_id))
 }
 
 fn get_notes_from_paths(deck: &str, paths: ReadDir) -> Vec<Note> {
@@ -184,11 +299,7 @@ fn render_front(fields: HashMap<String, String>, _template: String, _card_num: u
     markdown_to_html(front, &ComrakOptions::default())
 }
 
-fn render_back(
-    fields: HashMap<String, String>,
-    template: String,
-    card_num: u32,
-) -> String {
+fn render_back(fields: HashMap<String, String>, template: String, card_num: u32) -> String {
     let display_card = get_card_from_fields(fields, template, card_num);
 
     markdown_to_html(
@@ -282,11 +393,11 @@ pub fn render_card(card: Card, back: bool) -> Result<String, String> {
 
 #[tauri::command]
 pub fn review_card(card: Card, _score: ReviewScore) -> Result<String, String> {
-    match fs::OpenOptions::new().append(true).create(true).open(
-        deck::get_deck_path(&card.deck_id)
-            .join("reviews")
-            .join(format!("{}.json", &card.note_id)),
-    ) {
+    match fs::OpenOptions::new()
+        .append(true)
+        .create(true)
+        .open(get_review_path(card.clone().into()))
+    {
         Ok(mut file) => match file.write_all(&serde_json::to_vec(&card).unwrap()) {
             Ok(..) => Ok("".to_string()),
             Err(..) => Err("".to_string()),
