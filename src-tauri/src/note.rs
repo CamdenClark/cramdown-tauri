@@ -52,10 +52,10 @@ pub enum ReviewScore {
 pub struct Review {
     note_id: String,
     card_num: u32,
-    due: Option<DateTime<Utc>>,
+    due: DateTime<Utc>,
     interval: u32,
     ease: u32,
-    last_interval: Option<u32>,
+    last_interval: u32,
     state: CardState,
     score: ReviewScore,
     steps: u32,
@@ -94,47 +94,77 @@ impl Default for Card {
 }
 
 const EASY_INTERVAL: u32 = 4;
+const GRADUATION_INTERVAL: u32 = 1;
+const AGAIN_STEPS: u32 = 2;
 
 pub fn score_card(card: Card, time: DateTime<Utc>, score: ReviewScore) -> Review {
     let mut review = Review {
         note_id: card.note_id,
         card_num: card.card_num,
-        due: Some(Utc::now()),
+        due: Utc::now(),
         interval: card.interval,
         ease: card.ease,
-        last_interval: Some(1),
+        last_interval: card.interval,
         state: CardState::New,
         score: score.clone(),
-        steps: 0,
+        steps: card.steps,
     };
     match card.state {
         CardState::New => match score {
             ReviewScore::Easy => {
                 review.state = CardState::Graduated;
                 review.interval = EASY_INTERVAL;
-                review.due = time.checked_add_signed(Duration::days(EASY_INTERVAL.into()));
+                if let Some(due) = time.checked_add_signed(Duration::days(EASY_INTERVAL.into())) {
+                    review.due = due;
+                }
+                review.steps = 0;
                 review
             }
             ReviewScore::Again => {
-                review.state = CardState::New;
-                review.due = time.checked_add_signed(Duration::minutes(1));
+                review.steps = AGAIN_STEPS;
+                if let Some(due) = time.checked_add_signed(Duration::minutes(1)) {
+                    review.due = due;
+                }
                 review
             }
-            _ => review
-        }
-        _ => review
+            ReviewScore::Hard => {
+                review.steps = AGAIN_STEPS;
+                if let Some(due) = time.checked_add_signed(Duration::minutes(1)) {
+                    review.due = due;
+                }
+                review
+            }
+            ReviewScore::Good => {
+                if card.steps <= 1 {
+                    review.state = CardState::Graduated;
+                    review.steps = 0;
+                    if let Some(due) =
+                        time.checked_add_signed(Duration::days(GRADUATION_INTERVAL.into()))
+                    {
+                        review.due = due;
+                    }
+                } else {
+                    if let Some(due) = time.checked_add_signed(Duration::minutes(1)) {
+                        review.due = due;
+                    }
+                    review.steps -= 1;
+                }
+                review
+            }
+        },
+        _ => review,
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::note::{score_card, Card, CardState, ReviewScore};
+    use crate::note::{score_card, Card, CardState, ReviewScore, GRADUATION_INTERVAL};
     use chrono::{Duration, Utc};
 
     macro_rules! test_card {
-        ($interval:literal, $ease:literal, $steps:literal, $due:expr, $state:expr,
+        ($interval:literal, $ease:literal, $steps:literal, $state:expr,
      $score:expr,
-     $new_interval:literal, $new_ease:literal, $new_steps:literal, $duration:expr, $new_state:expr) => {
+     $expected_interval:literal, $expected_ease:literal, $expected_steps:literal, $expected_duration:expr, $expected_state:expr) => {
             let card = Card {
                 note_id: String::from("test"),
                 card_num: 1,
@@ -142,17 +172,17 @@ mod tests {
                 ease: $ease,
                 steps: $steps,
                 template: String::from("basic"),
-                due: $due,
+                due: Some(Utc::now()),
                 deck_id: String::from("test"),
                 state: $state,
             };
             let time = Utc::now();
             let review = score_card(card, time, $score);
-            assert_eq!(review.state, $new_state);
-            assert_eq!(review.due.unwrap().signed_duration_since(time), $duration);
-            assert_eq!(review.interval, $new_interval);
-            assert_eq!(review.ease, $new_ease);
-            assert_eq!(review.steps, $new_steps);
+            assert_eq!(review.state, $expected_state);
+            assert_eq!(review.due.signed_duration_since(time), $expected_duration);
+            assert_eq!(review.interval, $expected_interval);
+            assert_eq!(review.ease, $expected_ease);
+            assert_eq!(review.steps, $expected_steps);
         };
     }
 
@@ -162,7 +192,6 @@ mod tests {
             1,
             250,
             0,
-            Option::None,
             CardState::New,
             ReviewScore::Easy,
             4,
@@ -175,12 +204,59 @@ mod tests {
             1,
             250,
             0,
-            Option::None,
             CardState::New,
             ReviewScore::Again,
             1,
             250,
+            2,
+            Duration::minutes(1),
+            CardState::New
+        );
+        test_card!(
+            1,
+            250,
             0,
+            CardState::New,
+            ReviewScore::Hard,
+            1,
+            250,
+            2,
+            Duration::minutes(1),
+            CardState::New
+        );
+        test_card!(
+            1,
+            250,
+            0,
+            CardState::New,
+            ReviewScore::Good,
+            1,
+            250,
+            0,
+            Duration::days(GRADUATION_INTERVAL.into()),
+            CardState::Graduated
+        );
+        test_card!(
+            1,
+            250,
+            1,
+            CardState::New,
+            ReviewScore::Good,
+            1,
+            250,
+            0,
+            Duration::days(GRADUATION_INTERVAL.into()),
+            CardState::Graduated
+        );
+        test_card!(
+            1,
+            250,
+            2,
+            CardState::New,
+            ReviewScore::Good,
+            1,
+            250,
+            1,
             Duration::minutes(1),
             CardState::New
         );
