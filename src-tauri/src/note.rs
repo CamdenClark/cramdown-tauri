@@ -162,7 +162,7 @@ mod tests {
     use chrono::{Duration, Utc};
 
     macro_rules! test_card {
-        ($interval:literal, $ease:literal, $steps:literal, $state:expr,
+        ($message:literal, $interval:literal, $ease:literal, $steps:literal, $state:expr,
      $score:expr,
      $expected_interval:literal, $expected_ease:literal, $expected_steps:literal, $expected_duration:expr, $expected_state:expr) => {
             let card = Card {
@@ -178,17 +178,18 @@ mod tests {
             };
             let time = Utc::now();
             let review = score_card(card, time, $score);
-            assert_eq!(review.state, $expected_state, "Review card state doesn't match");
-            assert_eq!(review.due.signed_duration_since(time), $expected_duration, "Duration to next review doesn't match");
-            assert_eq!(review.interval, $expected_interval, "Interval doesn't match");
-            assert_eq!(review.ease, $expected_ease, "Ease factor doesn't match");
-            assert_eq!(review.steps, $expected_steps, "Review steps don't match");
+            assert_eq!(review.state, $expected_state, "Test: {}\nIssue: Card state doesn't match", $message);
+            assert_eq!(review.due.signed_duration_since(time), $expected_duration, "Test: {}\nIssue: Duration doesn't match", $message);
+            assert_eq!(review.interval, $expected_interval, "Test: {}\nIssue: Interval doesn't match", $message);
+            assert_eq!(review.ease, $expected_ease, "Test: {}\nIssue: Ease factor doesn't match", $message);
+            assert_eq!(review.steps, $expected_steps, "Test: {}\nIssue: Review steps don't match", $message);
         };
     }
 
     #[test]
     fn new_card_scored_easy() {
         test_card!(
+            "New card scored easy should graduate immediately",
             1,
             250,
             0,
@@ -205,6 +206,7 @@ mod tests {
     #[test]
     fn new_card_scored_again() {
         test_card!(
+            "New card scored again should reset steps",
             1,
             250,
             0,
@@ -221,6 +223,7 @@ mod tests {
     #[test]
     fn new_card_scored_hard() {
         test_card!(
+            "New card scored hard should reset steps",
             1,
             250,
             0,
@@ -237,6 +240,7 @@ mod tests {
     #[test]
     fn new_card_scored_good() {
         test_card!(
+            "New card scored good should graduate",
             1,
             250,
             0,
@@ -249,6 +253,7 @@ mod tests {
             CardState::Graduated
         );
         test_card!(
+            "New card scored good with one step should graduate",
             1,
             250,
             1,
@@ -261,6 +266,7 @@ mod tests {
             CardState::Graduated
         );
         test_card!(
+            "New card scored good with 2 steps should remove a step but stay in new",
             1,
             250,
             2,
