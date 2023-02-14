@@ -6,7 +6,8 @@
 pub mod collection;
 pub mod deck;
 pub mod note;
-//pub mod review;
+pub mod card;
+pub mod review;
 
 
 fn main() {
