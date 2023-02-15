@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::fs;
 use std::fs::ReadDir;
-use std::io::prelude::*;
 use std::path::PathBuf;
 use std::time::SystemTime;
 
@@ -11,13 +10,22 @@ use comrak::{markdown_to_html, ComrakOptions};
 use regex::Regex;
 
 use crate::deck;
-use chrono::{DateTime, Duration, Utc};
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct Note {
     note_id: String,
     deck_id: String,
     template: String,
+}
+
+impl Note {
+    pub fn new(note_id: String, deck_id: String, template: String) -> Self {
+        Note { 
+            note_id,
+            deck_id,
+            template,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
@@ -118,12 +126,6 @@ fn get_card_from_fields(
         front: fields.get("Front").unwrap().clone(),
         back: fields.get("Back").unwrap().clone(),
     }
-}
-
-fn parse_card(md: String, template: String, card_num: u32) -> NoteCard {
-    let fields = parse_note_into_fields(md);
-
-    get_card_from_fields(fields, template, card_num)
 }
 
 pub fn render_front(fields: HashMap<String, String>, _template: String, _card_num: u32) -> String {

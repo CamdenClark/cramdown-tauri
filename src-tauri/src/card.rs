@@ -1,14 +1,13 @@
-
 use std::fs;
 use std::fs::ReadDir;
+use std::path::PathBuf;
 use std::io::prelude::*;
-use std::time::SystemTime;
 
 use serde::{Deserialize, Serialize};
 
 use regex::Regex;
 
-use chrono::{DateTime, Duration, Utc};
+use chrono::{DateTime, Utc};
 
 use crate::deck;
 // TODO: Reconsider the interfaces that are used to
@@ -16,13 +15,8 @@ use crate::deck;
 // that takes a note and returns all the cards generated
 // from that note
 use crate::note::{Note, get_note_path, parse_note_into_fields, render_back, render_front};
+use crate::review::{Review, ReviewState, ReviewScore};
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub enum CardState {
-    New,
-    Graduated,
-    Relearning,
-}
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Card {
@@ -32,18 +26,32 @@ pub struct Card {
     interval: u32,
     due: Option<DateTime<Utc>>,
     ease: u32,
-    state: CardState,
+    state: ReviewState,
     steps: u32,
     template: String,
 }
 
+pub fn get_review_path(card: Card) -> PathBuf {
+    deck::get_deck_path(&card.deck_id)
+        .join("reviews")
+        .join(format!("{}.jsonl", &card.note_id))
+}
+
 impl From<Card> for Note {
     fn from(card: Card) -> Self {
-        Note {
-            note_id: card.note_id,
-            deck_id: card.deck_id,
-            template: card.template,
-        }
+        Note::new(card.note_id, card.deck_id, card.template) 
+    }
+}
+
+impl From<Card> for Review {
+    fn from(card: Card) -> Self {
+        Review::new(
+                card.due,
+                card.interval,
+                card.ease,
+                card.state,
+                card.steps,
+        )
     }
 }
 
@@ -58,7 +66,7 @@ impl Default for Card {
             template: String::from("basic"),
             due: None,
             deck_id: String::from("test"),
-            state: CardState::New,
+            state: ReviewState::New,
         }
     }
 }
@@ -110,7 +118,7 @@ fn get_due_cards_from_paths(deck: &str, paths: ReadDir) -> Vec<Card> {
                         due: Option::None,
                         ease: 200,
                         interval: 100,
-                        state: CardState::New,
+                        state: ReviewState::New,
                         steps: 0,
                         template: "basic".to_string(),
                         note_id: note_id.to_string(),
@@ -133,5 +141,20 @@ pub fn list_cards_to_review(deck: &str) -> Result<Vec<Card>, String> {
     match fs::read_dir(deck::get_deck_path(deck)) {
         Ok(paths) => Ok(get_due_cards_from_paths(deck, paths)),
         Err(err) => Err(err.to_string()),
+    }
+}
+
+#[tauri::command]
+pub fn review_card(card: Card, _score: ReviewScore) -> Result<String, String> {
+    match fs::OpenOptions::new()
+        .append(true)
+        .create(true)
+        .open(get_review_path(card.clone().into()))
+    {
+        Ok(mut file) => match file.write_all(&serde_json::to_vec(&card).unwrap()) {
+            Ok(..) => Ok("".to_string()),
+            Err(..) => Err("".to_string()),
+        },
+        Err(..) => Err("".to_string()),
     }
 }
