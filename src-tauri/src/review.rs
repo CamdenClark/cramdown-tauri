@@ -23,11 +23,11 @@ pub enum ReviewScore {
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct Review {
-    due: Option<DateTime<Utc>>,
-    interval: f64,
-    ease: f64,
-    state: ReviewState,
-    steps: u32,
+    pub due: Option<DateTime<Utc>>,
+    pub interval: f64,
+    pub ease: f64,
+    pub state: ReviewState,
+    pub steps: u32,
 }
 
 impl Review {
@@ -58,7 +58,7 @@ const RELEARNING_STEPS: [u32; 1] = [10];
 const MINIMUM_INTERVAL: f64 = 1.0;
 const MINIMUM_EASE: f64 = 1.3;
 
-pub fn score_card(mut review: Review, time: DateTime<Utc>, score: ReviewScore) -> Review {
+pub fn score_card(mut review: Review, time: DateTime<Utc>, score: &ReviewScore) -> Review {
     match review.state {
         ReviewState::New => match score {
             ReviewScore::Easy => {

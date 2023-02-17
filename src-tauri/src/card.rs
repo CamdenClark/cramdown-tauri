@@ -9,7 +9,7 @@ use regex::Regex;
 
 use chrono::{DateTime, Utc};
 
-use crate::deck;
+use crate::{deck, review};
 // TODO: Reconsider the interfaces that are used to
 // render notes -- should probably just have a function
 // that takes a note and returns all the cards generated
@@ -29,6 +29,7 @@ pub struct Card {
     state: ReviewState,
     steps: u32,
     template: String,
+    score: ReviewScore,
 }
 
 pub fn get_review_path(card: Card) -> PathBuf {
@@ -55,6 +56,20 @@ impl From<Card> for Review {
     }
 }
 
+impl Card {
+    fn update_from_review(self, review: Review, score: ReviewScore) -> Card {
+        Card {
+            due: review.due,
+            interval: review.interval,
+            ease: review.ease,
+            state: review.state,
+            steps: review.steps,
+            score,
+            ..self
+        }
+    }
+}
+
 impl Default for Card {
     fn default() -> Self {
         Card {
@@ -67,6 +82,7 @@ impl Default for Card {
             due: None,
             deck_id: String::from("test"),
             state: ReviewState::New,
+            score: ReviewScore::Good,
         }
     }
 }
@@ -139,13 +155,17 @@ pub fn list_cards_to_review(deck: &str) -> Result<Vec<Card>, String> {
 }
 
 #[tauri::command]
-pub fn review_card(card: Card, _score: ReviewScore) -> Result<String, String> {
+pub fn review_card(card: Card, score: ReviewScore) -> Result<String, String> {
+    let new_review = review::score_card(card.clone().into(), Utc::now(), &score);
+
+    let new_card = card.clone().update_from_review(new_review, score.clone());
+
     match fs::OpenOptions::new()
         .append(true)
         .create(true)
         .open(get_review_path(card.clone().into()))
     {
-        Ok(mut file) => match file.write_all(&serde_json::to_vec(&card).unwrap()) {
+        Ok(mut file) => match file.write_all(&serde_json::to_vec(&new_card).unwrap()) {
             Ok(..) => Ok("".to_string()),
             Err(..) => Err("".to_string()),
         },
