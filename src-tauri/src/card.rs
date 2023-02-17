@@ -23,9 +23,9 @@ pub struct Card {
     note_id: String,
     deck_id: String,
     card_num: u32,
-    interval: u32,
+    interval: f64,
     due: Option<DateTime<Utc>>,
-    ease: u32,
+    ease: f64,
     state: ReviewState,
     steps: u32,
     template: String,
@@ -47,9 +47,8 @@ impl From<Card> for Review {
     fn from(card: Card) -> Self {
         Review::new(
                 card.due,
-                // TODO: Fix these to be f64 up the stack
-                card.interval.into(),
-                card.ease.into(),
+                card.interval,
+                card.ease,
                 card.state,
                 card.steps,
         )
@@ -61,8 +60,8 @@ impl Default for Card {
         Card {
             note_id: String::from("test"),
             card_num: 1,
-            interval: 1,
-            ease: 250,
+            interval: 1.0,
+            ease: 2.5,
             steps: 0,
             template: String::from("basic"),
             due: None,
@@ -115,14 +114,8 @@ fn get_due_cards_from_paths(deck: &str, paths: ReadDir) -> Vec<Card> {
 
                     Some(Card {
                         deck_id: deck.to_string(),
-                        card_num: 1,
-                        due: Option::None,
-                        ease: 200,
-                        interval: 100,
-                        state: ReviewState::New,
-                        steps: 0,
-                        template: "basic".to_string(),
                         note_id: note_id.to_string(),
+                        ..Card::default()
                     })
                 }
             },
