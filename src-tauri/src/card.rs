@@ -47,8 +47,9 @@ impl From<Card> for Review {
     fn from(card: Card) -> Self {
         Review::new(
                 card.due,
-                card.interval,
-                card.ease,
+                // TODO: Fix these to be f64 up the stack
+                card.interval.into(),
+                card.ease.into(),
                 card.state,
                 card.steps,
         )

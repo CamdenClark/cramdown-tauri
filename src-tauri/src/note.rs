@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::fs;
 use std::fs::ReadDir;
+// Might need this, unsure... use std::io::prelude::*;
 use std::path::PathBuf;
 use std::time::SystemTime;
 
@@ -26,12 +27,6 @@ impl Note {
             template,
         }
     }
-}
-
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
-struct BasicCard {
-    front: String,
-    back: String,
 }
 
 // Note fields are a hashmap of String => String
@@ -129,6 +124,7 @@ fn get_card_from_fields(
 }
 
 pub fn render_front(fields: HashMap<String, String>, _template: String, _card_num: u32) -> String {
+    // TODO: Handle different template types
     let empty = String::default();
     let front = fields.get("Front").unwrap_or(&empty);
 
@@ -136,6 +132,7 @@ pub fn render_front(fields: HashMap<String, String>, _template: String, _card_nu
 }
 
 pub fn render_back(fields: HashMap<String, String>, template: String, card_num: u32) -> String {
+    // TODO: Handle different template types
     let display_card = get_card_from_fields(fields, template, card_num);
 
     markdown_to_html(
