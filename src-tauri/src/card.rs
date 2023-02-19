@@ -1,7 +1,7 @@
 use std::fs;
 use std::fs::ReadDir;
-use std::path::PathBuf;
 use std::io::prelude::*;
+use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
@@ -14,9 +14,8 @@ use crate::{deck, review};
 // render notes -- should probably just have a function
 // that takes a note and returns all the cards generated
 // from that note
-use crate::note::{Note, get_note_path, parse_note_into_fields, render_back, render_front};
-use crate::review::{Review, ReviewState, ReviewScore};
-
+use crate::note::{get_note_path, parse_note_into_fields, render_back, render_front, Note};
+use crate::review::{Review, ReviewScore, ReviewState};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Card {
@@ -40,19 +39,13 @@ pub fn get_review_path(card: Card) -> PathBuf {
 
 impl From<Card> for Note {
     fn from(card: Card) -> Self {
-        Note::new(card.note_id, card.deck_id, card.template) 
+        Note::new(card.note_id, card.deck_id, card.template)
     }
 }
 
 impl From<Card> for Review {
     fn from(card: Card) -> Self {
-        Review::new(
-                card.due,
-                card.interval,
-                card.ease,
-                card.state,
-                card.steps,
-        )
+        Review::new(card.due, card.interval, card.ease, card.state, card.steps)
     }
 }
 
@@ -109,7 +102,6 @@ pub fn render_card(card: Card, back: bool) -> Result<String, String> {
     }
 }
 
-
 fn get_due_cards_from_paths(deck: &str, paths: ReadDir) -> Vec<Card> {
     let note_filename_regex = Regex::new("([^_]*)?_?(.*).md").unwrap();
     paths
@@ -156,7 +148,7 @@ pub fn list_cards_to_review(deck: &str) -> Result<Vec<Card>, String> {
 
 #[tauri::command]
 pub fn review_card(card: Card, score: ReviewScore) -> Result<String, String> {
-    let new_review = review::score_card(card.clone().into(), Utc::now(), &score);
+    let new_review = review::score_card(card.clone().into(), Utc::now(), score.clone());
 
     let new_card = card.clone().update_from_review(new_review, score.clone());
 
@@ -172,3 +164,4 @@ pub fn review_card(card: Card, score: ReviewScore) -> Result<String, String> {
         Err(..) => Err("".to_string()),
     }
 }
+

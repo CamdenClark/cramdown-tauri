@@ -1,7 +1,6 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::env;
 
-const COLLECTION_DIR: &str = "/home/camden/flashcards";
-
-pub fn get_collection_path() -> &'static Path {
-    Path::new(COLLECTION_DIR)
+pub fn get_collection_path() -> PathBuf {
+    Path::new(&env::var("COLLECTION_PATH").unwrap()).to_path_buf()
 }
