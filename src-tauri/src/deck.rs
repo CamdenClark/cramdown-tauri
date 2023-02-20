@@ -38,35 +38,34 @@ pub fn create_deck(name: &str) -> String {
 #[cfg(test)]
 mod tests {
     use crate::deck;
-    use std::{env, fs, path::PathBuf};
-
-    fn scaffold_integration_tests() -> PathBuf {
-        let collection_path = env::temp_dir().join("test-collection");
-        fs::create_dir_all(collection_path.clone()).unwrap();
-        env::set_var("COLLECTION_PATH", collection_path.to_str().unwrap());
-
-        collection_path
-    }
+    use tempfile::tempdir;
+    use std::{env, fs};
 
     #[test]
     fn create_deck() {
-        let collection_path = scaffold_integration_tests();
+        let collection_path = tempdir().unwrap();
+        env::set_var("COLLECTION_PATH", collection_path.path().to_str().unwrap());
         deck::create_deck("testdeck");
 
-        assert!(fs::read_dir(collection_path)
-            .unwrap()
-            .all(|paths| "testdeck" == paths.unwrap().file_name().to_str().unwrap()),
-            "There should only be one deck (folder) in the collection (folder) with name testdeck")
+        assert!(
+            fs::read_dir(collection_path)
+                .unwrap()
+                .all(|paths| "testdeck" == paths.unwrap().file_name().to_str().unwrap()),
+            "There should only be one deck (folder) in the collection (folder) with name testdeck"
+        )
     }
 
     #[test]
     fn list_decks() {
-        scaffold_integration_tests();
+        let collection_path = tempdir().unwrap();
+        env::set_var("COLLECTION_PATH", collection_path.path().to_str().unwrap());
         deck::create_deck("testdeck");
 
         let decks = deck::get_decks().unwrap();
 
-        assert!(decks.into_iter().all(|deck| "testdeck" == deck), 
-            "There should only be one deck (folder) in the collection (folder) with name testdeck")
+        assert!(
+            decks.into_iter().all(|deck| "testdeck" == deck),
+            "There should only be one deck (folder) in the collection (folder) with name testdeck"
+        )
     }
 }

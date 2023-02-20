@@ -216,19 +216,9 @@ pub fn render_note_card(
 
 #[cfg(test)]
 mod tests {
-    use crate::deck;
-    use std::{env, fs, path::PathBuf};
     use std::collections::HashMap;
-
     use crate::note::preview_note;
 
-    fn scaffold_integration_tests() -> PathBuf {
-        let collection_path = env::temp_dir().join("test-collection");
-        fs::create_dir_all(collection_path.clone()).unwrap();
-        env::set_var("COLLECTION_PATH", collection_path.to_str().unwrap());
-
-        collection_path
-    }
 
     #[test]
     fn preview_note_basic() {
@@ -260,31 +250,5 @@ mod tests {
         let preview = preview_note(fields, "basic".into(), 1, true);
 
         assert_eq!("<p>Front Text</p>\n<hr />\n", preview);
-    }
-
-    #[test]
-    fn create_deck() {
-        let collection_path = scaffold_integration_tests();
-        deck::create_deck("testdeck");
-
-        assert!(
-            fs::read_dir(collection_path)
-                .unwrap()
-                .all(|paths| "testdeck" == paths.unwrap().file_name().to_str().unwrap()),
-            "There should only be one deck (folder) in the collection (folder) with name testdeck"
-        )
-    }
-
-    #[test]
-    fn list_decks() {
-        scaffold_integration_tests();
-        deck::create_deck("testdeck");
-
-        let decks = deck::get_decks().unwrap();
-
-        assert!(
-            decks.into_iter().all(|deck| "testdeck" == deck),
-            "There should only be one deck (folder) in the collection (folder) with name testdeck"
-        )
     }
 }
