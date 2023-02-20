@@ -38,13 +38,19 @@ pub fn create_deck(name: &str) -> String {
 #[cfg(test)]
 mod tests {
     use crate::deck;
-    use tempfile::tempdir;
+    use tempfile::{tempdir, TempDir};
     use std::{env, fs};
+
+    fn scaffold_collection() -> TempDir {
+        let collection_path = tempdir().unwrap();
+        env::set_var("COLLECTION_PATH", collection_path.path().to_str().unwrap());
+
+        collection_path
+    }
 
     #[test]
     fn create_deck() {
-        let collection_path = tempdir().unwrap();
-        env::set_var("COLLECTION_PATH", collection_path.path().to_str().unwrap());
+        let collection_path = scaffold_collection();
         deck::create_deck("testdeck");
 
         assert!(
@@ -57,8 +63,7 @@ mod tests {
 
     #[test]
     fn list_decks() {
-        let collection_path = tempdir().unwrap();
-        env::set_var("COLLECTION_PATH", collection_path.path().to_str().unwrap());
+        let _collection_path = scaffold_collection();
         deck::create_deck("testdeck");
 
         let decks = deck::get_decks().unwrap();
