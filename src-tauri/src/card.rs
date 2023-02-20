@@ -78,12 +78,7 @@ impl Default for Card {
 
 #[tauri::command]
 pub fn render_card(card: Card, back: bool) -> Result<String, String> {
-    match fs::read_to_string(Note::from(card.clone()).get_path()) {
-        Ok(content) => {
-            note::render_note_card(card.into(), card.card_num, back)
-        }
-        Err(err) => Err(err.to_string()),
-    }
+    note::render_note_card(card.clone().into(), card.card_num, back)
 }
 
 fn get_due_cards_from_paths(deck: &str, paths: ReadDir) -> Vec<Card> {

@@ -12,7 +12,7 @@ use regex::Regex;
 
 use crate::deck;
 
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Note {
     note_id: String,
     deck_id: String,
@@ -73,7 +73,7 @@ fn get_notes_from_paths(deck: &str, paths: ReadDir) -> Vec<Note> {
         .collect()
 }
 
-pub fn parse_note_into_fields(md: String) -> HashMap<String, String> {
+fn parse_note_into_fields(md: String) -> HashMap<String, String> {
     let re = Regex::new("# (.*)").unwrap();
     let mut fields = HashMap::new();
     let mut current_field: Option<String> = None;
@@ -111,17 +111,17 @@ pub fn parse_note_into_fields(md: String) -> HashMap<String, String> {
 
 fn get_card_from_fields(
     fields: HashMap<String, String>,
-    _template: String,
+    _template: &str,
     _card_num: u32,
 ) -> NoteCard {
     // TODO: Handle different template types
     NoteCard {
-        front: fields.get("Front").unwrap().clone(),
-        back: fields.get("Back").unwrap().clone(),
+        front: fields.get("Front").unwrap_or(&String::default()).to_string(),
+        back: fields.get("Back").unwrap_or(&String::default()).to_string(),
     }
 }
 
-pub fn render_front(fields: HashMap<String, String>, _template: String, _card_num: u32) -> String {
+fn render_front(fields: HashMap<String, String>, _template: &str, _card_num: u32) -> String {
     // TODO: Handle different template types
     let empty = String::default();
     let front = fields.get("Front").unwrap_or(&empty);
@@ -129,7 +129,7 @@ pub fn render_front(fields: HashMap<String, String>, _template: String, _card_nu
     markdown_to_html(front, &ComrakOptions::default())
 }
 
-pub fn render_back(fields: HashMap<String, String>, template: String, card_num: u32) -> String {
+fn render_back(fields: HashMap<String, String>, template: &str, card_num: u32) -> String {
     // TODO: Handle different template types
     let display_card = get_card_from_fields(fields, template, card_num);
 
@@ -156,7 +156,7 @@ fn get_note_md(fields: HashMap<String, String>) -> String {
 }
 
 #[tauri::command]
-pub fn create_note(mut note: Note, fields: HashMap<String, String>) -> String {
+pub fn create_note(mut note: Note, fields: HashMap<String, String>) -> Result<(), String> {
     let time = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
         .unwrap()
@@ -165,16 +165,16 @@ pub fn create_note(mut note: Note, fields: HashMap<String, String>) -> String {
     note.note_id = format!("{}_{}", time, note.template);
 
     match fs::write(note.get_path(), get_note_md(fields)) {
-        Ok(..) => "".to_string(),
-        Err(..) => "".to_string(),
+        Ok(..) => Ok(()),
+        Err(err) => Err(err.to_string()),
     }
 }
 
 #[tauri::command]
-pub fn update_note(note: Note, fields: HashMap<String, String>) -> String {
+pub fn update_note(note: Note, fields: HashMap<String, String>) -> Result<(), String> {
     match fs::write(note.get_path(), get_note_md(fields)) {
-        Ok(..) => "".to_string(),
-        Err(..) => "".to_string(),
+        Ok(..) => Ok(()),
+        Err(err) => Err(err.to_string()),
     }
 }
 
@@ -194,9 +194,9 @@ pub fn preview_note(
     back: bool,
 ) -> String {
     if back {
-        render_back(fields, template, card_num)
+        render_back(fields, &template, card_num)
     } else {
-        render_front(fields, template, card_num)
+        render_front(fields, &template, card_num)
     }
 }
 
@@ -206,12 +206,11 @@ pub fn render_note_card(
     card_num: u32,
     back: bool,
 ) -> Result<String, String> {
-    let template = note.template;
-    let fields = read_note(note)?;
+    let fields = read_note(note.clone())?;
     if back {
-        Ok(render_back(fields, template, card_num))
+        Ok(render_back(fields, &note.template, card_num))
     } else {
-        Ok(render_front(fields, template, card_num))
+        Ok(render_front(fields, &note.template, card_num))
     }
 }
 
@@ -219,6 +218,9 @@ pub fn render_note_card(
 mod tests {
     use crate::deck;
     use std::{env, fs, path::PathBuf};
+    use std::collections::HashMap;
+
+    use crate::note::preview_note;
 
     fn scaffold_integration_tests() -> PathBuf {
         let collection_path = env::temp_dir().join("test-collection");
@@ -226,6 +228,38 @@ mod tests {
         env::set_var("COLLECTION_PATH", collection_path.to_str().unwrap());
 
         collection_path
+    }
+
+    #[test]
+    fn preview_note_basic() {
+        let mut fields = HashMap::<String, String>::new();
+        fields.insert("Front".into(), "Front Text".into());
+        fields.insert("Back".into(), "Back Text".into());
+
+        let preview = preview_note(fields, "basic".into(), 1, true);
+
+        assert_eq!("<p>Front Text</p>\n<hr />\n<p>Back Text</p>\n", preview);
+    }
+
+    #[test]
+    fn preview_note_basic_front_only() {
+        let mut fields = HashMap::<String, String>::new();
+        fields.insert("Front".into(), "Front Text".into());
+        fields.insert("Back".into(), "Back Text".into());
+
+        let preview = preview_note(fields, "basic".into(), 1, false);
+
+        assert_eq!("<p>Front Text</p>\n", preview);
+    }
+
+    #[test]
+    fn preview_note_basic_no_back_data() {
+        let mut fields = HashMap::<String, String>::new();
+        fields.insert("Front".into(), "Front Text".into());
+
+        let preview = preview_note(fields, "basic".into(), 1, true);
+
+        assert_eq!("<p>Front Text</p>\n<hr />\n", preview);
     }
 
     #[test]
