@@ -9,12 +9,8 @@ use regex::Regex;
 
 use chrono::{DateTime, Utc};
 
-use crate::{deck, review};
-// TODO: Reconsider the interfaces that are used to
-// render notes -- should probably just have a function
-// that takes a note and returns all the cards generated
-// from that note
-use crate::note::{get_note_path, parse_note_into_fields, render_back, render_front, Note};
+use crate::{deck, review, note};
+use crate::note::Note;
 use crate::review::{Review, ReviewScore, ReviewState};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -82,21 +78,9 @@ impl Default for Card {
 
 #[tauri::command]
 pub fn render_card(card: Card, back: bool) -> Result<String, String> {
-    match fs::read_to_string(get_note_path(card.clone().into())) {
+    match fs::read_to_string(Note::from(card.clone()).get_path()) {
         Ok(content) => {
-            if back {
-                Ok(render_back(
-                    parse_note_into_fields(content),
-                    card.template,
-                    card.card_num,
-                ))
-            } else {
-                Ok(render_front(
-                    parse_note_into_fields(content),
-                    card.template,
-                    card.card_num,
-                ))
-            }
+            note::render_note_card(card.into(), card.card_num, back)
         }
         Err(err) => Err(err.to_string()),
     }

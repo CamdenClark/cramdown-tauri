@@ -21,26 +21,24 @@ pub struct Note {
 
 impl Note {
     pub fn new(note_id: String, deck_id: String, template: String) -> Self {
-        Note { 
+        Note {
             note_id,
             deck_id,
             template,
         }
     }
+    pub fn get_path(&self) -> PathBuf {
+        deck::get_deck_path(&self.deck_id).join(format!("{}_{}.md", self.note_id, self.template))
+    }
 }
 
 // Note fields are a hashmap of String => String
-
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct NoteCard {
     front: String,
     back: String,
 }
 
-
-pub fn get_note_path(note: Note) -> PathBuf {
-    deck::get_deck_path(&note.deck_id).join(format!("{}_{}.md", &note.note_id, &note.template))
-}
 
 fn get_notes_from_paths(deck: &str, paths: ReadDir) -> Vec<Note> {
     let note_filename_regex = Regex::new("([^_]*)?_?(.*).md").unwrap();
@@ -143,13 +141,13 @@ pub fn render_back(fields: HashMap<String, String>, template: String, card_num: 
 
 #[tauri::command]
 pub fn read_note(note: Note) -> Result<HashMap<String, String>, String> {
-    match fs::read(get_note_path(note)) {
+    match fs::read(note.get_path()) {
         Ok(f) => Ok(parse_note_into_fields(String::from_utf8(f).unwrap())),
         Err(err) => Err(err.to_string()),
     }
 }
 
-pub fn get_note_md(fields: HashMap<String, String>) -> String {
+fn get_note_md(fields: HashMap<String, String>) -> String {
     let mut md = "".to_string();
     for (field, value) in fields.iter() {
         md = format!("{}# {}\n{}\n", md, field, value);
@@ -166,7 +164,7 @@ pub fn create_note(mut note: Note, fields: HashMap<String, String>) -> String {
         .to_string();
     note.note_id = format!("{}_{}", time, note.template);
 
-    match fs::write(get_note_path(note), get_note_md(fields)) {
+    match fs::write(note.get_path(), get_note_md(fields)) {
         Ok(..) => "".to_string(),
         Err(..) => "".to_string(),
     }
@@ -174,7 +172,7 @@ pub fn create_note(mut note: Note, fields: HashMap<String, String>) -> String {
 
 #[tauri::command]
 pub fn update_note(note: Note, fields: HashMap<String, String>) -> String {
-    match fs::write(get_note_path(note), get_note_md(fields)) {
+    match fs::write(note.get_path(), get_note_md(fields)) {
         Ok(..) => "".to_string(),
         Err(..) => "".to_string(),
     }
@@ -193,12 +191,66 @@ pub fn preview_note(
     fields: HashMap<String, String>,
     template: String,
     card_num: u32,
-    show_back: bool,
+    back: bool,
 ) -> String {
-    if show_back {
+    if back {
         render_back(fields, template, card_num)
     } else {
         render_front(fields, template, card_num)
     }
 }
 
+#[tauri::command]
+pub fn render_note_card(
+    note: Note,
+    card_num: u32,
+    back: bool,
+) -> Result<String, String> {
+    let template = note.template;
+    let fields = read_note(note)?;
+    if back {
+        Ok(render_back(fields, template, card_num))
+    } else {
+        Ok(render_front(fields, template, card_num))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::deck;
+    use std::{env, fs, path::PathBuf};
+
+    fn scaffold_integration_tests() -> PathBuf {
+        let collection_path = env::temp_dir().join("test-collection");
+        fs::create_dir_all(collection_path.clone()).unwrap();
+        env::set_var("COLLECTION_PATH", collection_path.to_str().unwrap());
+
+        collection_path
+    }
+
+    #[test]
+    fn create_deck() {
+        let collection_path = scaffold_integration_tests();
+        deck::create_deck("testdeck");
+
+        assert!(
+            fs::read_dir(collection_path)
+                .unwrap()
+                .all(|paths| "testdeck" == paths.unwrap().file_name().to_str().unwrap()),
+            "There should only be one deck (folder) in the collection (folder) with name testdeck"
+        )
+    }
+
+    #[test]
+    fn list_decks() {
+        scaffold_integration_tests();
+        deck::create_deck("testdeck");
+
+        let decks = deck::get_decks().unwrap();
+
+        assert!(
+            decks.into_iter().all(|deck| "testdeck" == deck),
+            "There should only be one deck (folder) in the collection (folder) with name testdeck"
+        )
+    }
+}

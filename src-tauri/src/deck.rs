@@ -58,4 +58,15 @@ mod tests {
             .all(|paths| "testdeck" == paths.unwrap().file_name().to_str().unwrap()),
             "There should only be one deck (folder) in the collection (folder) with name testdeck")
     }
+
+    #[test]
+    fn list_decks() {
+        scaffold_integration_tests();
+        deck::create_deck("testdeck");
+
+        let decks = deck::get_decks().unwrap();
+
+        assert!(decks.into_iter().all(|deck| "testdeck" == deck), 
+            "There should only be one deck (folder) in the collection (folder) with name testdeck")
+    }
 }
