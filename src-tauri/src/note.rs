@@ -39,7 +39,6 @@ pub struct NoteCard {
     back: String,
 }
 
-
 fn get_notes_from_paths(deck: &str, paths: ReadDir) -> Vec<Note> {
     let note_filename_regex = Regex::new("([^_]*)?_?(.*).md").unwrap();
     paths
@@ -116,7 +115,10 @@ fn get_card_from_fields(
 ) -> NoteCard {
     // TODO: Handle different template types
     NoteCard {
-        front: fields.get("Front").unwrap_or(&String::default()).to_string(),
+        front: fields
+            .get("Front")
+            .unwrap_or(&String::default())
+            .to_string(),
         back: fields.get("Back").unwrap_or(&String::default()).to_string(),
     }
 }
@@ -201,11 +203,7 @@ pub fn preview_note(
 }
 
 #[tauri::command]
-pub fn render_note_card(
-    note: Note,
-    card_num: u32,
-    back: bool,
-) -> Result<String, String> {
+pub fn render_note_card(note: Note, card_num: u32, back: bool) -> Result<String, String> {
     let fields = read_note(note.clone())?;
     if back {
         Ok(render_back(fields, &note.template, card_num))
@@ -216,9 +214,85 @@ pub fn render_note_card(
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-    use crate::note::preview_note;
+    use crate::note::{preview_note, read_note, Note};
+    use std::{env, io};
+    use std::ops::Deref;
+    use std::path::{Path, PathBuf};
+    use std::{collections::HashMap, fs};
 
+    use tempfile::TempDir;
+
+    struct Fixture {
+        path: PathBuf,
+        source: PathBuf,
+        _tempdir: TempDir,
+    }
+
+    pub fn copy_recursively(
+        source: impl AsRef<Path>,
+        destination: impl AsRef<Path>,
+    ) -> io::Result<()> {
+        fs::create_dir_all(&destination)?;
+        for entry in fs::read_dir(source)? {
+            let entry = entry?;
+            let filetype = entry.file_type()?;
+            if filetype.is_dir() {
+                copy_recursively(entry.path(), destination.as_ref().join(entry.file_name()))?;
+            } else {
+                fs::copy(entry.path(), destination.as_ref().join(entry.file_name()))?;
+            }
+        }
+        Ok(())
+    }
+
+    impl Fixture {
+        fn blank(fixture_folder: &str) -> Self {
+            let root_dir = &env::var("CARGO_MANIFEST_DIR").expect("$CARGO_MANIFEST_DIR");
+            let mut source = PathBuf::from(root_dir);
+            source.push("tests/fixtures");
+            source.push(&fixture_folder);
+
+            let tempdir = tempfile::tempdir().unwrap();
+            env::set_var("COLLECTION_PATH", &tempdir.path().to_str().unwrap());
+            let mut path = PathBuf::from(&tempdir.path());
+            path.push(&fixture_folder);
+
+            Fixture {
+                _tempdir: tempdir,
+                source,
+                path,
+            }
+        }
+
+        fn copy(fixture_folder: &str) -> Self {
+            let fixture = Fixture::blank(fixture_folder);
+            copy_recursively(&fixture.source, &fixture.path).unwrap();
+            fixture
+        }
+    }
+
+    impl Deref for Fixture {
+        type Target = Path;
+
+        fn deref(&self) -> &Self::Target {
+            self.path.deref()
+        }
+    }
+
+    #[test]
+    fn read_note_basic() {
+        let deck = Fixture::copy("basicdeck");
+
+        let fields = read_note(Note {
+            deck_id: "basicdeck".into(),
+            note_id: "123".into(),
+            template: "basic".into(),
+        })
+        .unwrap();
+
+        assert_eq!("Question", fields.get("Front").unwrap());
+        assert_eq!("Answer", fields.get("Back").unwrap());
+    }
 
     #[test]
     fn preview_note_basic() {

@@ -63,7 +63,7 @@ mod tests {
 
     #[test]
     fn list_decks() {
-        let _collection_path = scaffold_collection();
+        scaffold_collection();
         deck::create_deck("testdeck");
 
         let decks = deck::get_decks().unwrap();
