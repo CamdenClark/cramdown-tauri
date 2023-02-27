@@ -3,17 +3,20 @@
     windows_subsystem = "windows"
 )]
 
-pub mod collection;
 pub mod deck;
 pub mod note;
 pub mod card;
 pub mod review;
+pub mod context;
 
+use std::env;
 
 fn main() {
+    let collection_path = &env::var("COLLECTION_PATH").unwrap();
     tauri::Builder::default()
+        .manage(context::Context::from(collection_path))
         .invoke_handler(tauri::generate_handler![
-            deck::get_decks,
+            deck::get_decks_handler,
             deck::create_deck,
             note::list_notes,
             note::create_note,

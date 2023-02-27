@@ -9,6 +9,9 @@ use serde::{Deserialize, Serialize};
 
 use comrak::{markdown_to_html, ComrakOptions};
 use regex::Regex;
+use tauri::State;
+
+use crate::collection::CollectionPath;
 
 use crate::deck;
 
@@ -181,8 +184,8 @@ pub fn update_note(note: Note, fields: HashMap<String, String>) -> Result<(), St
 }
 
 #[tauri::command]
-pub fn list_notes(deck: &str) -> Result<Vec<Note>, String> {
-    match fs::read_dir(deck::get_deck_path(deck)) {
+pub fn list_notes(state: State<CollectionPath>, deck: &str) -> Result<Vec<Note>, String> {
+    match fs::read_dir(deck::get_deck_path(deck, &state.0)) {
         Ok(paths) => Ok(get_notes_from_paths(deck, paths)),
         Err(err) => Err(err.to_string()),
     }
@@ -215,10 +218,10 @@ pub fn render_note_card(note: Note, card_num: u32, back: bool) -> Result<String,
 #[cfg(test)]
 mod tests {
     use crate::note::{preview_note, read_note, Note};
-    use std::{env, io};
     use std::ops::Deref;
     use std::path::{Path, PathBuf};
     use std::{collections::HashMap, fs};
+    use std::{env, io};
 
     use tempfile::TempDir;
 
@@ -245,43 +248,18 @@ mod tests {
         Ok(())
     }
 
-    impl Fixture {
-        fn blank(fixture_folder: &str) -> Self {
-            let root_dir = &env::var("CARGO_MANIFEST_DIR").expect("$CARGO_MANIFEST_DIR");
-            let mut source = PathBuf::from(root_dir);
-            source.push("tests/fixtures");
-            source.push(&fixture_folder);
-
-            let tempdir = tempfile::tempdir().unwrap();
-            env::set_var("COLLECTION_PATH", &tempdir.path().to_str().unwrap());
-            let mut path = PathBuf::from(&tempdir.path());
-            path.push(&fixture_folder);
-
-            Fixture {
-                _tempdir: tempdir,
-                source,
-                path,
-            }
-        }
-
-        fn copy(fixture_folder: &str) -> Self {
-            let fixture = Fixture::blank(fixture_folder);
-            copy_recursively(&fixture.source, &fixture.path).unwrap();
-            fixture
-        }
-    }
-
-    impl Deref for Fixture {
-        type Target = Path;
-
-        fn deref(&self) -> &Self::Target {
-            self.path.deref()
-        }
-    }
-
     #[test]
     fn read_note_basic() {
-        let deck = Fixture::copy("basicdeck");
+        let root_dir = &env::var("CARGO_MANIFEST_DIR").expect("$CARGO_MANIFEST_DIR");
+        let mut source = PathBuf::from(root_dir);
+        source.push("tests/fixtures");
+        source.push("basicdeck");
+
+        let tempdir = tempfile::tempdir().unwrap();
+        let mut path = PathBuf::from(&tempdir.path());
+        env::set_var("COLLECTION_PATH", path.to_str().unwrap());
+        path.push("basicdeck");
+        copy_recursively(source, path).unwrap();
 
         let fields = read_note(Note {
             deck_id: "basicdeck".into(),
@@ -292,6 +270,9 @@ mod tests {
 
         assert_eq!("Question", fields.get("Front").unwrap());
         assert_eq!("Answer", fields.get("Back").unwrap());
+
+        
+        tempdir.close().unwrap();
     }
 
     #[test]
